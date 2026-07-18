@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import sheCanCode.maintainanceHub.dto.RegisterRequest;
-import sheCanCode.maintainanceHub.dto.RegisterResponse;
+import sheCanCode.maintainanceHub.auth.JwtUtil;
+import sheCanCode.maintainanceHub.dto.*;
 import sheCanCode.maintainanceHub.modals.Customer;
 import sheCanCode.maintainanceHub.modals.OtpVerification;
 import sheCanCode.maintainanceHub.modals.User;
@@ -26,6 +26,9 @@ public class AuthService {
     private final CustomerRepository customerRepository;
     private final OtpVerificationRepository otpVerificationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+
+    private static final int MAX_FAILED_ATTEMPTS = 5;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -95,5 +98,86 @@ public class AuthService {
         Random random = new Random();
         int otp = 100000 + random.nextInt(900000);
         return String.valueOf(otp);
+    }
+
+    // ==================== LOGIN ====================
+    @Transactional
+    public LoginResponse login(LoginRequest request) {
+        log.info("Processing login for: {}", request.getEmailOrPhone());
+
+        // Find user by email or phone
+        User user = userRepository.findByEmail(request.getEmailOrPhone())
+                .or(() -> userRepository.findByPhoneNumber(request.getEmailOrPhone()))
+                .orElseThrow(() -> new RuntimeException("Invalid email/phone or password"));
+
+        // Check if account is blocked
+        if (user.getIsBlocked()) {
+            throw new RuntimeException("Account is blocked due to multiple failed login attempts. Please contact support.");
+        }
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // Increment failed login attempts
+            user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
+            
+            if (user.getFailedLoginAttempts() >= MAX_FAILED_ATTEMPTS) {
+                user.setIsBlocked(true);
+                userRepository.save(user);
+                log.warn("Account blocked for user ID {} after {} failed attempts", user.getId(), MAX_FAILED_ATTEMPTS);
+                throw new RuntimeException("Account blocked due to multiple failed login attempts");
+            }
+            
+            userRepository.save(user);
+            log.warn("Failed login attempt {} for user ID {}", user.getFailedLoginAttempts(), user.getId());
+            throw new RuntimeException("Invalid email/phone or password");
+        }
+
+        // Check if user is verified
+        if (!user.getIsVerified()) {
+            // Generate new OTP for verification
+            String otpCode = generateAndSaveOtp(user, OtpVerification.OtpType.LOGIN);
+            log.info("User not verified. New OTP sent: {}", otpCode);
+            throw new RuntimeException("Account not verified. OTP sent to your email/phone. OTP: " + otpCode);
+        }
+
+        // Reset failed login attempts on successful login
+        if (user.getFailedLoginAttempts() > 0) {
+            user.setFailedLoginAttempts(0);
+            userRepository.save(user);
+        }
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(user);
+
+        log.info("User {} logged in successfully", user.getEmail());
+
+        return LoginResponse.builder()
+                .userId(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
+                .role(user.getRole())
+                .isVerified(user.getIsVerified())
+                .token(token)
+                .message("Login successful")
+                .build();
+    }
+
+    // ==================== HELPER METHODS ====================
+    private String generateAndSaveOtp(User user, OtpVerification.OtpType otpType) {
+        String otpCode = generateOTP();
+        
+        OtpVerification otp = new OtpVerification();
+        otp.setUser(user);
+        otp.setOtpCode(otpCode);
+        otp.setOtpType(otpType);
+        otp.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        otp.setIsUsed(false);
+        otpVerificationRepository.save(otp);
+        
+        // In production, send OTP via SMS/Email service
+        // For now, we just return it
+        
+        return otpCode;
     }
 }
