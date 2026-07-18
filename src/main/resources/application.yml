@@ -3,11 +3,10 @@ spring:
     name: MaintenainceHub
 
   datasource:
-    url: jdbc:postgresql://localhost:5433/maintenaincehub_db
+    url: jdbc:postgresql://localhost:5432/maintenaincehub_db
     username: postgres
-    password: 123
+    password: 1234
     driver-class-name: org.postgresql.Driver
-
 
   jpa:
     hibernate:
@@ -48,7 +47,6 @@ spring:
             client-secret: DISABLED
             scope: email, profile
 
-
 app:
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
@@ -66,5 +64,15 @@ logging:
 mail:
   port:578
 
-server:
-  port: 8050
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  show-actuator: false
+
