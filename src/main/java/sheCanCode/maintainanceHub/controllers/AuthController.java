@@ -155,14 +155,12 @@ public class AuthController {
                 ));
     }
 
-    // TODO: Implement forgot-password and reset-password endpoints
-    // These will be implemented in OtpService when needed
-    
-    /*
+
     @PostMapping("/forgot-password")
     @Operation(
             summary = "Request password reset",
-            description = "Trigger a password-reset OTP to be sent to user's email/phone."
+            description = "Trigger a PASSWORD_RESET OTP to be sent to the user's email/phone. " +
+                    "Any previously issued unused reset OTP will be invalidated."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -181,19 +179,18 @@ public class AuthController {
     })
     public ResponseEntity<sheCanCode.maintainanceHub.dto.ApiResponse<OtpResponse>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
-        
+
         log.info("Forgot password request for: {}", request.getEmailOrPhone());
-        
+
         try {
-            // Use OtpService.sendOtp with PASSWORD_RESET type
             OtpResponse response = authService.forgotPassword(request);
-            
+
             return ResponseEntity
                     .ok(sheCanCode.maintainanceHub.dto.ApiResponse.success(
                             "Password reset OTP sent successfully",
                             response
                     ));
-            
+
         } catch (RuntimeException e) {
             log.error("Forgot password failed: {}", e.getMessage());
             return ResponseEntity
@@ -206,7 +203,7 @@ public class AuthController {
     @Operation(
             summary = "Reset password",
             description = "Set a new password after OTP verification. " +
-                    "This will also reset failed login attempts and unblock the account if blocked."
+                    "This also resets failed login attempts and unblocks the account if it was blocked."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -218,24 +215,30 @@ public class AuthController {
                     responseCode = "400",
                     description = "Invalid or expired OTP",
                     content = @Content(mediaType = "application/json")
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No account found with this email/phone",
+                    content = @Content(mediaType = "application/json")
             )
     })
     public ResponseEntity<sheCanCode.maintainanceHub.dto.ApiResponse<String>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
-        
-        log.info("Reset password request for user ID: {}", request.getUserId());
-        
+
+        log.info("Reset password request for: {}", request.getEmailOrPhone());
+
         try {
             sheCanCode.maintainanceHub.dto.ApiResponse<String> response = authService.resetPassword(request);
-            
             return ResponseEntity.ok(response);
-            
+
         } catch (RuntimeException e) {
             log.error("Reset password failed: {}", e.getMessage());
+            HttpStatus status = e.getMessage().contains("No account found")
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
             return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
+                    .status(status)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.error(e.getMessage()));
         }
     }
-    */
 }

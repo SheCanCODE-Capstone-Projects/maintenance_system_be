@@ -163,6 +163,91 @@ public class AuthService {
                 .build();
     }
 
+    // ==================== FORGOT PASSWORD ====================
+    @Transactional
+    public OtpResponse forgotPassword(ForgotPasswordRequest request) {
+        log.info("Processing forgot password for: {}", request.getEmailOrPhone());
+
+        // Find user — throws if not found
+        User user = userRepository.findByEmail(request.getEmailOrPhone())
+                .or(() -> userRepository.findByPhoneNumber(request.getEmailOrPhone()))
+                .orElseThrow(() -> new RuntimeException("No account found with this email or phone number"));
+
+        // Invalidate any existing PASSWORD_RESET OTPs
+        otpVerificationRepository
+                .findTopByUserAndOtpTypeAndIsUsedFalseOrderByCreatedAtDesc(user, OtpVerification.OtpType.PASSWORD_RESET)
+                .ifPresent(existing -> {
+                    existing.setIsUsed(true);
+                    otpVerificationRepository.save(existing);
+                });
+
+        // Generate and save a new PASSWORD_RESET OTP
+        String otpCode = generateOTP();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(10);
+
+        OtpVerification otp = new OtpVerification();
+        otp.setUser(user);
+        otp.setOtpCode(otpCode);
+        otp.setOtpType(OtpVerification.OtpType.PASSWORD_RESET);
+        otp.setExpiresAt(expiresAt);
+        otp.setIsUsed(false);
+        otpVerificationRepository.save(otp);
+
+        log.info("Password-reset OTP generated for user {}: {}", user.getId(), otpCode);
+
+        // In production, send OTP via SMS/Email here
+
+        return OtpResponse.builder()
+                .message("Password reset OTP sent to your email/phone")
+                .destination(maskDestination(request.getEmailOrPhone()))
+                .expiresAt(expiresAt)
+                .otpCode(otpCode) // Only expose in development/testing
+                .build();
+    }
+
+    // ==================== RESET PASSWORD ====================
+    @Transactional
+    public ApiResponse<String> resetPassword(ResetPasswordRequest request) {
+        log.info("Processing password reset for: {}", request.getEmailOrPhone());
+
+        // Find user
+        User user = userRepository.findByEmail(request.getEmailOrPhone())
+                .or(() -> userRepository.findByPhoneNumber(request.getEmailOrPhone()))
+                .orElseThrow(() -> new RuntimeException("No account found with this email or phone number"));
+
+        // Find the matching unused PASSWORD_RESET OTP
+        OtpVerification otp = otpVerificationRepository
+                .findByUserAndOtpCodeAndIsUsedFalse(user, request.getOtpCode())
+                .orElseThrow(() -> new RuntimeException("Invalid OTP code"));
+
+        // Ensure the OTP is of PASSWORD_RESET type
+        if (otp.getOtpType() != OtpVerification.OtpType.PASSWORD_RESET) {
+            throw new RuntimeException("Invalid OTP code for password reset");
+        }
+
+        // Check expiry
+        if (otp.isExpired()) {
+            throw new RuntimeException("OTP has expired. Please request a new password reset.");
+        }
+
+        // Mark OTP as used
+        otp.setIsUsed(true);
+        otpVerificationRepository.save(otp);
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        // Reset failed attempts and unblock account if it was blocked
+        user.setFailedLoginAttempts(0);
+        user.setIsBlocked(false);
+
+        userRepository.save(user);
+
+        log.info("Password reset successfully for user ID: {}", user.getId());
+
+        return ApiResponse.success("Password has been reset successfully. You can now log in with your new password.", null);
+    }
+
     // ==================== HELPER METHODS ====================
     private String generateAndSaveOtp(User user, OtpVerification.OtpType otpType) {
         String otpCode = generateOTP();
@@ -179,5 +264,22 @@ public class AuthService {
         // For now, we just return it
         
         return otpCode;
+    }
+
+    private String maskDestination(String destination) {
+        if (destination.contains("@")) {
+            String[] parts = destination.split("@");
+            String username = parts[0];
+            String domain = parts[1];
+            if (username.length() <= 2) {
+                return "**@" + domain;
+            }
+            return username.substring(0, 2) + "***@" + domain;
+        } else {
+            if (destination.length() <= 4) {
+                return "****" + destination.substring(destination.length() - 2);
+            }
+            return destination.substring(0, 4) + "****" + destination.substring(destination.length() - 2);
+        }
     }
 }
