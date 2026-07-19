@@ -12,16 +12,16 @@ A Spring Boot application for managing maintenance requests, connecting customer
 ### Database Setup
 1. Create PostgreSQL database:
 ```sql
-CREATE DATABASE maintenaincehub_db;
+CREATE DATABASE databaseName;
 ```
 
 2. Update credentials in `src/main/resources/application.yml` if needed:
 ```yaml
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/maintenaincehub_db
-    username: postgres
-    password: 1234
+    url_Db
+    username:
+    password: 
 ```
 
 ### Running the Application
