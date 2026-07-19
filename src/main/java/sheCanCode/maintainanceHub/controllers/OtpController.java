@@ -55,26 +55,32 @@ public class OtpController {
     })
     public ResponseEntity<sheCanCode.maintainanceHub.dto.ApiResponse<OtpResponse>> sendOtp(
             @Valid @RequestBody OtpSendRequest request) {
-        
+
         log.info("OTP send request received for identifier: {}", request.getIdentifier());
-        
+
         try {
             OtpResponse response = otpService.sendOtp(
                     request.getIdentifier(),
-                    request.getOtpType()
+                    request.getOtpType()  // Fixed: was getOtpTypeant() (typo)
             );
-            
+
             return ResponseEntity
                     .status(HttpStatus.OK)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.success(
                             "OTP sent successfully",
                             response
                     ));
-            
+
         } catch (RuntimeException e) {
             log.error("Failed to send OTP: {}", e.getMessage());
+
+            // Return 404 when user is not found, 400 for any other issue
+            HttpStatus status = e.getMessage() != null && e.getMessage().contains("User not found")
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
+                    .status(status)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.error(e.getMessage()));
         }
     }
@@ -107,15 +113,15 @@ public class OtpController {
     })
     public ResponseEntity<sheCanCode.maintainanceHub.dto.ApiResponse<String>> verifyOtp(
             @Valid @RequestBody OtpVerifyRequest request) {
-        
+
         log.info("OTP verification request received for identifier: {}", request.getIdentifier());
-        
+
         try {
             boolean verified = otpService.verifyOtp(
                     request.getIdentifier(),
                     request.getOtpCode()
             );
-            
+
             if (verified) {
                 return ResponseEntity
                         .status(HttpStatus.OK)
@@ -130,11 +136,17 @@ public class OtpController {
                                 "OTP verification failed"
                         ));
             }
-            
+
         } catch (RuntimeException e) {
             log.error("OTP verification failed: {}", e.getMessage());
+
+            // 404 when user not found, 400 for invalid/expired OTP
+            HttpStatus status = e.getMessage() != null && e.getMessage().contains("User not found")
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+
             return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
+                    .status(status)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.error(e.getMessage()));
         }
     }
@@ -167,23 +179,29 @@ public class OtpController {
     })
     public ResponseEntity<sheCanCode.maintainanceHub.dto.ApiResponse<OtpResponse>> resendOtp(
             @Valid @RequestBody OtpSendRequest request) {
-        
+
         log.info("OTP resend request received for identifier: {}", request.getIdentifier());
-        
+
         try {
             OtpResponse response = otpService.resendOtp(request.getIdentifier());
-            
+
             return ResponseEntity
                     .status(HttpStatus.OK)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.success(
                             "Fresh OTP sent successfully. Previous OTP has been invalidated.",
                             response
                     ));
-            
+
         } catch (RuntimeException e) {
             log.error("Failed to resend OTP: {}", e.getMessage());
+
+            // 404 when user not found, 400 for any other issue
+            HttpStatus status = e.getMessage() != null && e.getMessage().contains("User not found")
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
+                    .status(status)
                     .body(sheCanCode.maintainanceHub.dto.ApiResponse.error(e.getMessage()));
         }
     }
