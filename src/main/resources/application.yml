@@ -2,12 +2,14 @@ spring:
   application:
     name: MaintenainceHub
 
-  datasource:
-    url: jdbc:postgresql://localhost:5433/maintenaincehub_db
-    username: postgres
-    password: 123
-    driver-class-name: org.postgresql.Driver
+  profiles:
+    active: local  # Loads application-local.yml which holds real credentials (gitignored)
 
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/db}
+    username: ${DB_USERNAME:changeme}
+    password: ${DB_PASSWORD:changeme}
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
@@ -30,8 +32,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: your-email@gmail.com
-    password: your-app-password
+    username: ${MAIL_USERNAME:changeme}
+    password: ${MAIL_PASSWORD:changeme}
     properties:
       mail:
         smtp:
@@ -44,15 +46,14 @@ spring:
       client:
         registration:
           google:
-            client-id: DISABLED
-            client-secret: DISABLED
+            client-id: ${GOOGLE_CLIENT_ID:DISABLED}
+            client-secret: ${GOOGLE_CLIENT_SECRET:DISABLED}
             scope: email, profile
-
 
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-    expiration: 86400000
+    secret: ${JWT_SECRET:changeme-use-local-profile}
+    expiration: ${JWT_EXPIRATION:86400000}
   upload:
     dir: uploads/prescriptions
   email:
@@ -66,5 +67,15 @@ logging:
 mail:
   port:578
 
-server:
-  port: 8050
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  show-actuator: false
+
