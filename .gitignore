@@ -30,4 +30,14 @@ build/
 !**/src/test/**/build/
 
 ### VS Code ###
-.vscode/
+
+### Environment Variables ###
+# Keep .env out of version control — it contains real secrets
+.env
+# application-local.yml holds real credentials for local dev — never commit it
+**/application-local.yml
+# .env.example is intentionally committed as a template for teammates
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
