@@ -38,5 +38,4 @@ build/
 # .env.example is intentionally committed as a template for teammates
 .gitignore
 node_modules
-.vscode/
-.env
+config.bat
